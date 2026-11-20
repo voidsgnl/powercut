@@ -2,7 +2,7 @@
 
 > Power-loss protection for Linux: continuously saves your session, reacts to low battery or UPS alerts, and restores your work after an unexpected shutdown.
 
-**Status:** early design / pre-alpha. Nothing here is usable yet.
+**Status:** early design / pre-alpha. Nothing here is usable yet. PowerCut is a standalone project.
 
 ## The problem
 
@@ -56,10 +56,6 @@ powercut restore    # restore the last session after an unclean shutdown
 ## Roadmap
 
 See [docs/ROADMAP.md](docs/ROADMAP.md) and [docs/DESIGN.md](docs/DESIGN.md).
-
-## Related
-
-PowerCut is designed to share its history store with [UndoOS](https://github.com/voidsgnl/undoos).
 
 ## License
 
