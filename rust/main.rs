@@ -273,11 +273,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::{fs, time::{SystemTime, UNIX_EPOCH}};
+    use std::{
+        fs,
+        time::{SystemTime, UNIX_EPOCH},
+    };
 
     fn temp_dir(label: &str) -> PathBuf {
         let nonce = SystemTime::now()
@@ -357,13 +359,19 @@ mod tests {
         record_transition(&connection, Some(true), Some(false), "t1").unwrap();
         record_transition(&connection, Some(false), Some(false), "t2").unwrap();
         let open_count: i64 = connection
-            .query_row("SELECT count(*) FROM outages WHERE ended_at IS NULL", [], |row| row.get(0))
+            .query_row(
+                "SELECT count(*) FROM outages WHERE ended_at IS NULL",
+                [],
+                |row| row.get(0),
+            )
             .unwrap();
         assert_eq!(open_count, 1);
 
         record_transition(&connection, Some(false), Some(true), "t3").unwrap();
         let row: (String, Option<String>) = connection
-            .query_row("SELECT kind, ended_at FROM outages", [], |row| Ok((row.get(0)?, row.get(1)?)))
+            .query_row("SELECT kind, ended_at FROM outages", [], |row| {
+                Ok((row.get(0)?, row.get(1)?))
+            })
             .unwrap();
         assert_eq!(row.0, "ac_loss");
         assert_eq!(row.1.as_deref(), Some("t3"));
