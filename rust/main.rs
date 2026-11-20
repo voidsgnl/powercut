@@ -1,4 +1,4 @@
-use chrono::{DateTime, Utc};
+use chrono::Utc;
 use clap::{Parser, Subcommand};
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
