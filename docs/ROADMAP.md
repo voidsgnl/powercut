@@ -8,7 +8,7 @@ The production implementation is Rust. The original Python Phase 1 is retained t
 - [x] Implement SQLite outage logging using the existing schema.
 - [x] Implement running marker and unclean-shutdown recording.
 - [x] Implement status, log, and foreground daemon commands.
-- [ ] Add automated Rust tests for sysfs fixtures and outage transitions.
+- [x] Add automated Rust tests for sysfs fixtures, power-state fallbacks, outage transitions, unknown readings, and marker writes.
 - [ ] Add exclusive daemon lock and reliable SIGINT/SIGTERM cleanup.
 - [ ] Verify Python-created database and marker fixtures against Rust.
 - [ ] Switch packaging and CI fully to Rust after parity.

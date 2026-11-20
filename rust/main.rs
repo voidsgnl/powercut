@@ -148,6 +148,19 @@ fn close_outages(c: &Connection, at: &str) -> rusqlite::Result<()> {
     )?;
     Ok(())
 }
+fn record_transition(
+    c: &Connection,
+    previous: Option<bool>,
+    current: Option<bool>,
+    at: &str,
+) -> rusqlite::Result<()> {
+    match (previous, current) {
+        (Some(true), Some(false)) | (None, Some(false)) => open_outage(c, "ac_loss", at)?,
+        (Some(false), Some(true)) => close_outages(c, at)?,
+        _ => {}
+    }
+    Ok(())
+}
 fn daemon(sd: &Path, interval: u64) -> Result<(), Box<dyn std::error::Error>> {
     fs::create_dir_all(sd)?;
     let mp = marker_path(sd);
@@ -172,15 +185,7 @@ fn daemon(sd: &Path, interval: u64) -> Result<(), Box<dyn std::error::Error>> {
     loop {
         let s = power_state(root);
         let at = now();
-        if previous == Some(true) && s.on_ac == Some(false) {
-            open_outage(&c, "ac_loss", &at)?;
-        }
-        if previous == Some(false) && s.on_ac == Some(true) {
-            close_outages(&c, &at)?;
-        }
-        if previous.is_none() && s.on_ac == Some(false) {
-            open_outage(&c, "ac_loss", &at)?;
-        }
+        record_transition(&c, previous, s.on_ac, &at)?;
         previous = s.on_ac;
         write_marker(&mp, &started)?;
         thread::sleep(Duration::from_secs(interval.max(1)));
@@ -266,4 +271,130 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Command::Daemon { interval } => daemon(&sd, interval)?,
     }
     Ok(())
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::{fs, time::{SystemTime, UNIX_EPOCH}};
+
+    fn temp_dir(label: &str) -> PathBuf {
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("clock should be after epoch")
+            .as_nanos();
+        let path = env::temp_dir().join(format!("powercut-{label}-{}-{nonce}", process::id()));
+        fs::create_dir_all(&path).expect("create test directory");
+        path
+    }
+
+    fn put(root: &Path, relative: &str, value: &str) {
+        let path = root.join(relative);
+        fs::create_dir_all(path.parent().expect("fixture has parent")).unwrap();
+        fs::write(path, value).unwrap();
+    }
+
+    #[test]
+    fn detects_ac_and_battery_from_sysfs_fixture() {
+        let root = temp_dir("sysfs-ac");
+        put(&root, "AC/type", "Mains\n");
+        put(&root, "AC/online", "1\n");
+        put(&root, "BAT0/type", "Battery\n");
+        put(&root, "BAT0/capacity", "73\n");
+        put(&root, "BAT0/status", "Charging\n");
+
+        let state = power_state(&root);
+        assert_eq!(state.on_ac, Some(true));
+        assert_eq!(state.battery, Some(73));
+        assert_eq!(state.status.as_deref(), Some("Charging"));
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn detects_battery_operation_when_ac_sensor_is_missing() {
+        let root = temp_dir("sysfs-fallback");
+        put(&root, "BAT0/type", "Battery\n");
+        put(&root, "BAT0/capacity", "42\n");
+        put(&root, "BAT0/status", "Discharging\n");
+
+        let state = power_state(&root);
+        assert_eq!(state.on_ac, Some(false));
+        assert_eq!(state.battery, Some(42));
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn ignores_device_scope_batteries_and_clamps_capacity() {
+        let root = temp_dir("sysfs-device-battery");
+        put(&root, "BAT0/type", "Battery\n");
+        put(&root, "BAT0/scope", "Device\n");
+        put(&root, "BAT0/capacity", "99\n");
+        put(&root, "BAT1/type", "Battery\n");
+        put(&root, "BAT1/capacity", "140\n");
+        put(&root, "BAT1/status", "Full\n");
+
+        let state = power_state(&root);
+        assert_eq!(state.battery, Some(100));
+        assert_eq!(state.on_ac, Some(true));
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn reports_unknown_when_power_supply_directory_is_empty() {
+        let root = temp_dir("sysfs-unknown");
+        let state = power_state(&root);
+        assert_eq!(state.on_ac, None);
+        assert_eq!(state.battery, None);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn records_ac_loss_once_and_closes_it_on_restoration() {
+        let root = temp_dir("transitions");
+        let connection = db(&root.join("powercut.db")).unwrap();
+
+        record_transition(&connection, Some(true), Some(false), "t1").unwrap();
+        record_transition(&connection, Some(false), Some(false), "t2").unwrap();
+        let open_count: i64 = connection
+            .query_row("SELECT count(*) FROM outages WHERE ended_at IS NULL", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(open_count, 1);
+
+        record_transition(&connection, Some(false), Some(true), "t3").unwrap();
+        let row: (String, Option<String>) = connection
+            .query_row("SELECT kind, ended_at FROM outages", [], |row| Ok((row.get(0)?, row.get(1)?)))
+            .unwrap();
+        assert_eq!(row.0, "ac_loss");
+        assert_eq!(row.1.as_deref(), Some("t3"));
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn unknown_power_reading_does_not_close_an_open_outage() {
+        let root = temp_dir("unknown-transition");
+        let connection = db(&root.join("powercut.db")).unwrap();
+        record_transition(&connection, Some(true), Some(false), "t1").unwrap();
+        record_transition(&connection, Some(false), None, "t2").unwrap();
+
+        let ended: Option<String> = connection
+            .query_row("SELECT ended_at FROM outages", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(ended, None);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn writes_a_valid_atomic_running_marker() {
+        let root = temp_dir("marker");
+        let path = marker_path(&root);
+        write_marker(&path, "started").unwrap();
+        let raw = fs::read(&path).unwrap();
+        let marker: Marker = serde_json::from_slice(&raw).unwrap();
+        assert_eq!(marker.pid, process::id());
+        assert_eq!(marker.started_at, "started");
+        assert!(!marker.heartbeat.is_empty());
+        assert!(!path.with_extension("tmp").exists());
+        fs::remove_dir_all(root).unwrap();
+    }
 }
