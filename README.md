@@ -2,7 +2,7 @@
 
 > Power-loss protection for Linux: continuously saves your session, reacts to low battery or UPS alerts, and restores your work after an unexpected shutdown.
 
-**Status:** early design / pre-alpha. Nothing here is usable yet. PowerCut is a standalone project.
+**Status:** pre-alpha. Phase 1 (detect and log) works; see the [roadmap](docs/ROADMAP.md). PowerCut is a standalone project.
 
 ## The problem
 
@@ -45,13 +45,18 @@ Records when power dropped and returned, and for how long, to reveal patterns ov
 - Window layout restore works on X11; Wayland depends on the compositor.
 - Hibernate needs swap at least as large as RAM. PowerCut will check and explain this.
 
-## Planned CLI
+## Try it (Phase 1)
 
 ```
-powercut status     # power state, last manifest, daemon health
+pip install -e .
+powercut daemon     # run the monitor in the foreground
+powercut status     # power state, daemon health, last outage
 powercut log        # outage history
-powercut restore    # restore the last session after an unclean shutdown
 ```
+
+Coming later: `powercut restore` to restore the last session after an unclean shutdown.
+
+Run the tests with `pip install -e '.[dev]' && pytest`.
 
 ## Roadmap
 
