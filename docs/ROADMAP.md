@@ -1,43 +1,37 @@
 # PowerCut roadmap
 
-PowerCut is built in phases. Each phase should ship something usable on its own. The production implementation is Rust; the existing Python Phase 1 remains a working prototype until Rust reaches feature parity.
+The production implementation is Rust. The original Python Phase 1 is retained temporarily as a behavioral reference and will be removed after parity and migration checks.
 
-## Phase 1: Detect and log (Python prototype complete)
-- Power monitor reading `/sys/class/power_supply` (AC, battery level).
-- Outage log in SQLite.
-- Unclean shutdown detection via `running.marker` with a heartbeat.
-- CLI: `powercut status`, `powercut log`, `powercut daemon`.
-
-## Phase 1R: Rust core and parity (next)
-- Establish the Rust Cargo workspace and crate/module boundaries.
-- Implement power-source detection from sysfs.
-- Implement outage logging with the existing SQLite data model.
-- Implement running-marker heartbeat and unclean-shutdown detection.
-- Match the existing CLI behavior for `status`, `log`, and `daemon`.
-- Test Rust behavior against the Python prototype and shared state fixtures.
-- Preserve existing user data and state-directory compatibility before making Rust the default.
+## Phase 1R: Rust foundation (in progress)
+- [x] Establish Cargo project and Rust CLI.
+- [x] Implement sysfs AC/battery detection.
+- [x] Implement SQLite outage logging using the existing schema.
+- [x] Implement running marker and unclean-shutdown recording.
+- [x] Implement status, log, and foreground daemon commands.
+- [ ] Add automated Rust tests for sysfs fixtures and outage transitions.
+- [ ] Add exclusive daemon lock and reliable SIGINT/SIGTERM cleanup.
+- [ ] Verify Python-created database and marker fixtures against Rust.
+- [ ] Switch packaging and CI fully to Rust after parity.
 
 ## Phase 2: Prepare
-- Session tracker: running GUI apps, their open files, and working directories.
-- Manifest written atomically every 30-60 seconds (format in DESIGN.md).
-- Manifest history so the last good one survives a bad write.
+- Session tracker: running GUI apps, open files, and working directories.
+- Atomic manifest every 30-60 seconds with versioned history.
 
 ## Phase 3: Survive
-- Policy engine: tiered thresholds (initial defaults: 20% notify, 10% snapshot, 5% hibernate), configurable.
+- Configurable warning/snapshot/hibernate thresholds.
 - Desktop notifications.
-- Flush, snapshot, then hibernate or shut down cleanly. Check swap size first and explain if hibernate is not possible.
-- UPower over D-Bus as the preferred source, sysfs as fallback.
+- Safe flush and hibernate, with swap checks.
+- UPower integration, sysfs fallback.
 
 ## Phase 4: Recover
-- Recovery agent at login: detect unclean shutdown and show a plain-language prompt.
-- `powercut restore`: relaunch apps with the same files.
+- Detect unclean shutdown at login.
+- Plain-language recovery prompt and app relaunch.
 
 ## Phase 5: Continuous protection
-- Lightweight versioned copies of files being actively edited.
-- Offer the last good version of damaged files on recovery.
-- Filesystem hygiene checks (journaling, periodic `sync`).
+- Lightweight versions of actively edited files.
+- Last-good-version recovery and filesystem hygiene checks.
 
 ## Phase 6: Polish
 - UPS support via NUT or apcupsd.
 - Tray / small GUI prompt.
-- systemd service, packaging, and window-layout restore on X11.
+- systemd service, packaging, and X11 window-layout restore.

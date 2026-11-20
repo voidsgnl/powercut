@@ -1,0 +1,17 @@
+[package]
+name = "powercut"
+version = "0.2.0"
+edition = "2021"
+description = "Power-loss protection for Linux"
+license = "MIT"
+
+[[bin]]
+name = "powercut"
+path = "rust/main.rs"
+
+[dependencies]
+chrono = { version = "0.4", features = ["serde"] }
+clap = { version = "4", features = ["derive"] }
+rusqlite = { version = "0.32", features = ["bundled"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
