@@ -54,7 +54,8 @@ fn marker_path(sd:&Path)->PathBuf { sd.join("running.marker") }
 fn write_marker(path:&Path, started:&str)->std::io::Result<()> {
     let m=Marker{pid:process::id(),started_at:started.to_owned(),heartbeat:now()};
     let tmp=path.with_extension("tmp");
-    let encoded=serde_json::to_vec(&m).map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData,e))?;\n    fs::write(&tmp,encoded)?;
+    let encoded=serde_json::to_vec(&m).map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData,e))?;
+    fs::write(&tmp,encoded)?;
     let f=fs::OpenOptions::new().read(true).open(&tmp)?; f.sync_all()?;
     fs::rename(tmp,path)?;
     if let Some(p)=path.parent(){fs::File::open(p)?.sync_all()?;}
